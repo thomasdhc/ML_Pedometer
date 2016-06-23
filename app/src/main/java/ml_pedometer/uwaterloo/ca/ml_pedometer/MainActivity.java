@@ -89,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
         //NeuralNetwork loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
         //Test the loaded neural network
         //testNeuralNetwork(loadedNeuralNetwork, accelVals, step);
+        lin.addView(stepTextView);
     }
 
     // Storage Permissions
@@ -149,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
         {
             this.outputStep = outputStep;
             loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
+            mHandler.obtainMessage(1).sendToTarget();
             for (int x =0; x< 100 ; x++)
             {
                 accelReadings.add(0.0);
@@ -197,8 +199,7 @@ public class MainActivity extends AppCompatActivity {
             loadedNeuralNetwork.setInput(accelArray);
             loadedNeuralNetwork.calculate();
             double[] networkOutput = loadedNeuralNetwork.getOutput();
-            Log.i("Test output", "Output: " + Arrays.toString(networkOutput));
-            if (networkOutput[0] - 0.5 > 0)
+            if (networkOutput[0] - 0.91 > 0)
             {
                 stepCount++;
                 mHandler.obtainMessage(1).sendToTarget();
