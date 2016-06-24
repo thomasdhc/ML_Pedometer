@@ -17,5 +17,14 @@
             android:paddingRight="@dimen/activity_horizontal_margin"
             tools:context="lab1_202_02.uwaterloo.ca.lab1_202_02.MainActivity">
         </LinearLayout>
+        <Button
+            android:id="@+id/button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text = "Reset"
+            android:layout_alignParentBottom="true"
+            />
+
     </RelativeLayout>
 </ScrollView>
