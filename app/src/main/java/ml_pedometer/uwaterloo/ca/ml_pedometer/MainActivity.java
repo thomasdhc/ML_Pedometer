@@ -3,7 +3,6 @@ package ml_pedometer.uwaterloo.ca.ml_pedometer;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.hardware.Sensor;
@@ -16,6 +15,8 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -27,21 +28,20 @@ import org.neuroph.nnet.MultiLayerPerceptron;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity
+{
     TextView stepTextView;
+    Button reset;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState)
+    {
         BufferedReader reader;
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -52,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
 
         stepTextView = new TextView(getApplicationContext());
         stepTextView.setTextColor(Color.parseColor("#000000"));
+        reset = (Button) findViewById(R.id.button);
 
         MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(100, 8, 4, 1);
         TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(100, 1);
@@ -62,11 +63,13 @@ public class MainActivity extends AppCompatActivity {
         //Add training set data from "trainingData.txt"
         try {
             reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingData.txt")));
-            for (int x = 0; x < 200; x++) {
+            for (int x = 0; x < 200; x++)
+            {
                 double[] traingVals = new double[100];
                 step[x][0] = Double.parseDouble(reader.readLine());
                 accelVals[x] = reader.readLine().split("\\t");
-                for (int y = 0; y < 100; y++) {
+                for (int y = 0; y < 100; y++)
+                {
                     traingVals[y] = Double.parseDouble(accelVals[x][y]);
                 }
                 trainingSet.addElement(new SupervisedTrainingElement(traingVals, step[x]));
@@ -83,12 +86,10 @@ public class MainActivity extends AppCompatActivity {
         SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         Sensor accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
-        AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView);
+        AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView, reset);
 
         sensorManager.registerListener(a, accelSensor, SensorManager.SENSOR_DELAY_FASTEST);
-        //NeuralNetwork loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
-        //Test the loaded neural network
-        //testNeuralNetwork(loadedNeuralNetwork, accelVals, step);
+
         lin.addView(stepTextView);
     }
 
@@ -100,11 +101,13 @@ public class MainActivity extends AppCompatActivity {
     };
 
     // For app to write a text file to external storage, it must ask user for permission
-    public static void verifyStoragePermissions(Activity activity) {
+    public static void verifyStoragePermissions(Activity activity)
+    {
         // See if app has write permission
         int permission = ActivityCompat.checkSelfPermission(activity, Manifest.permission.WRITE_EXTERNAL_STORAGE);
 
-        if (permission != PackageManager.PERMISSION_GRANTED) {
+        if (permission != PackageManager.PERMISSION_GRANTED)
+        {
             // If app does not have write permission ask for it
             ActivityCompat.requestPermissions(
                     activity,
@@ -136,6 +139,7 @@ public class MainActivity extends AppCompatActivity {
     {
         NeuralNetwork loadedNeuralNetwork;
         TextView outputStep;
+        Button reset;
         Queue<Double> accelReadings = new LinkedList();
         int stepCount = 0;
         int stepTimer = 5;
@@ -146,8 +150,9 @@ public class MainActivity extends AppCompatActivity {
             }
         };;
 
-        public AccelerometerSensorEventListener(TextView outputStep)
+        public AccelerometerSensorEventListener(TextView outputStep, Button resetButton)
         {
+            this.reset = resetButton;
             this.outputStep = outputStep;
             loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
             mHandler.obtainMessage(1).sendToTarget();
@@ -155,6 +160,15 @@ public class MainActivity extends AppCompatActivity {
             {
                 accelReadings.add(0.0);
             }
+            reset.setOnClickListener(new View.OnClickListener()
+            {
+                @Override
+                public void onClick(View v)
+                {
+                    stepCount = 0;
+                    mHandler.obtainMessage(1).sendToTarget();
+                }
+            });
             TimerTask timerTask = new TimerTask()
             {
                 @Override
@@ -203,10 +217,7 @@ public class MainActivity extends AppCompatActivity {
             {
                 stepCount++;
                 mHandler.obtainMessage(1).sendToTarget();
-                for (int x =0; x< 100 ; x++)
-                {
-                    accelReadings.remove();
-                }
+                accelReadings.clear();
                 for (int y =0; y< 100 ; y++)
                 {
                     accelReadings.add(0.0);
