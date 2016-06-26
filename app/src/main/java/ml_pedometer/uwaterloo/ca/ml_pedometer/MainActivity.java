@@ -38,11 +38,11 @@ public class MainActivity extends AppCompatActivity
 {
     TextView stepTextView;
     Button reset;
+    Button learn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
-        BufferedReader reader;
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         verifyStoragePermissions(this);
@@ -53,7 +53,30 @@ public class MainActivity extends AppCompatActivity
         stepTextView = new TextView(getApplicationContext());
         stepTextView.setTextColor(Color.parseColor("#000000"));
         reset = (Button) findViewById(R.id.button);
+        learn = (Button) findViewById(R.id.button2);
 
+        learn.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View v)
+            {
+                trainNeuralNetwork();
+            }
+        });
+
+        SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        Sensor accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+
+        AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView, reset);
+
+        sensorManager.registerListener(a, accelSensor, SensorManager.SENSOR_DELAY_FASTEST);
+
+        lin.addView(stepTextView);
+    }
+
+    public void trainNeuralNetwork ()
+    {
+        BufferedReader reader;
         MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(100, 8, 4, 1);
         TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(100, 1);
 
@@ -82,15 +105,6 @@ public class MainActivity extends AppCompatActivity
         testNeuralNetwork(mlPerceptron, accelVals, step);
 
         mlPerceptron.save("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
-
-        SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        Sensor accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-
-        AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView, reset);
-
-        sensorManager.registerListener(a, accelSensor, SensorManager.SENSOR_DELAY_FASTEST);
-
-        lin.addView(stepTextView);
     }
 
     // Storage Permissions
