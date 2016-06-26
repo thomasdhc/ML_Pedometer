@@ -37,6 +37,7 @@ import java.util.TimerTask;
 public class MainActivity extends AppCompatActivity
 {
     TextView stepTextView;
+    TextView trained;
     Button reset;
     Button learn;
 
@@ -51,15 +52,20 @@ public class MainActivity extends AppCompatActivity
         lin.setOrientation(LinearLayout.VERTICAL);
 
         stepTextView = new TextView(getApplicationContext());
+        trained = new TextView(getApplicationContext());
         stepTextView.setTextColor(Color.parseColor("#000000"));
+        trained.setTextColor(Color.parseColor("#000000"));
+
         reset = (Button) findViewById(R.id.button);
         learn = (Button) findViewById(R.id.button2);
+        trained.setText("Neural Network Status: Not Trained");
 
         learn.setOnClickListener(new View.OnClickListener()
         {
             @Override
             public void onClick(View v)
             {
+                trained.setText("Neural Network Status: Training");
                 trainNeuralNetwork();
             }
         });
@@ -72,26 +78,27 @@ public class MainActivity extends AppCompatActivity
         sensorManager.registerListener(a, accelSensor, SensorManager.SENSOR_DELAY_FASTEST);
 
         lin.addView(stepTextView);
+        lin.addView (trained);
     }
 
     public void trainNeuralNetwork ()
     {
         BufferedReader reader;
-        MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(100, 8, 4, 1);
-        TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(100, 1);
+        MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(210, 8, 4, 1);
+        TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(210, 1);
 
-        String[][] accelVals = new String[200][100];
-        double[][] step = new double[200][1];
+        String[][] accelVals = new String[1000][210];
+        double[][] step = new double[1000][1];
 
         //Add training set data from "trainingData.txt"
         try {
-            reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingData.txt")));
-            for (int x = 0; x < 200; x++)
+            reader = new BufferedReader(new InputStreamReader(getAssets().open("stepTraining.txt")));
+            for (int x = 0; x < 1000; x++)
             {
-                double[] traingVals = new double[100];
+                double[] traingVals = new double[210];
                 step[x][0] = Double.parseDouble(reader.readLine());
                 accelVals[x] = reader.readLine().split("\\t");
-                for (int y = 0; y < 100; y++)
+                for (int y = 0; y < 210; y++)
                 {
                     traingVals[y] = Double.parseDouble(accelVals[x][y]);
                 }
@@ -105,6 +112,7 @@ public class MainActivity extends AppCompatActivity
         testNeuralNetwork(mlPerceptron, accelVals, step);
 
         mlPerceptron.save("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
+        trained.setText("Neural Network Status: Trained");
     }
 
     // Storage Permissions
@@ -133,10 +141,10 @@ public class MainActivity extends AppCompatActivity
 
     public void testNeuralNetwork(NeuralNetwork nnet, String[][] testSet, double[][] expectedOutput)
     {
-        double[] testVals = new double[100];
-        for (int x = 0; x < 200; x++)
+        double[] testVals = new double[210];
+        for (int x = 0; x < 1000; x++)
         {
-            for (int y = 0; y < 100; y++)
+            for (int y = 0; y < 210; y++)
             {
                 testVals[y] = Double.parseDouble(testSet[x][y]);
             }
