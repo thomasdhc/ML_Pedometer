@@ -24,11 +24,14 @@ import org.neuroph.core.NeuralNetwork;
 import org.neuroph.core.learning.SupervisedTrainingElement;
 import org.neuroph.core.learning.TrainingSet;
 import org.neuroph.nnet.MultiLayerPerceptron;
+import org.w3c.dom.Text;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -40,6 +43,16 @@ public class MainActivity extends AppCompatActivity
     TextView trained;
     Button reset;
     Button learn;
+    public final Handler mHandler = new Handler()
+    {
+        public void handleMessage(Message msg)
+        {
+            if (msg.what == 1)
+                trained.setText("Neural Network Status: Training");
+            else
+                trained.setText("Neural Network Status: Trained");//this is the textview
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -52,33 +65,38 @@ public class MainActivity extends AppCompatActivity
         lin.setOrientation(LinearLayout.VERTICAL);
 
         stepTextView = new TextView(getApplicationContext());
-        trained = new TextView(getApplicationContext());
+        trained = (TextView) findViewById(R.id.textview1);
         stepTextView.setTextColor(Color.parseColor("#000000"));
         trained.setTextColor(Color.parseColor("#000000"));
 
         reset = (Button) findViewById(R.id.button);
         learn = (Button) findViewById(R.id.button2);
-        trained.setText("Neural Network Status: Not Trained");
 
         learn.setOnClickListener(new View.OnClickListener()
         {
             @Override
             public void onClick(View v)
             {
-                trained.setText("Neural Network Status: Training");
-                trainNeuralNetwork();
+                if (trained.getText().equals("Neural Network Status: Not Trained"))
+                {
+                    mHandler.sendEmptyMessage(1);
+                    trainNeuralNetwork();
+                    setUpSensor();
+                }
             }
         });
 
+        lin.addView(stepTextView);
+    }
+
+    public void setUpSensor ()
+    {
         SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         Sensor accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
         AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView, reset);
 
         sensorManager.registerListener(a, accelSensor, SensorManager.SENSOR_DELAY_FASTEST);
-
-        lin.addView(stepTextView);
-        lin.addView (trained);
     }
 
     public void trainNeuralNetwork ()
@@ -92,12 +110,12 @@ public class MainActivity extends AppCompatActivity
 
         //Add training set data from "trainingData.txt"
         try {
-            reader = new BufferedReader(new InputStreamReader(getAssets().open("stepTraining.txt")));
+            reader = new BufferedReader(new InputStreamReader(getAssets().open("finalStepTrainingData.txt")));
             for (int x = 0; x < 1000; x++)
             {
                 double[] traingVals = new double[210];
                 step[x][0] = Double.parseDouble(reader.readLine());
-                accelVals[x] = reader.readLine().split("\\t");
+                accelVals[x] = reader.readLine().split(" ");
                 for (int y = 0; y < 210; y++)
                 {
                     traingVals[y] = Double.parseDouble(accelVals[x][y]);
@@ -112,7 +130,7 @@ public class MainActivity extends AppCompatActivity
         testNeuralNetwork(mlPerceptron, accelVals, step);
 
         mlPerceptron.save("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
-        trained.setText("Neural Network Status: Trained");
+        mHandler.sendEmptyMessage(2);
     }
 
     // Storage Permissions
@@ -162,7 +180,9 @@ public class MainActivity extends AppCompatActivity
         NeuralNetwork loadedNeuralNetwork;
         TextView outputStep;
         Button reset;
-        Queue<Double> accelReadings = new LinkedList();
+        List<Double>[] accelReadingsFast =  (ArrayList<Double>[])new ArrayList[3];
+        List<Double>[] accelReadingsNormal =  (ArrayList<Double>[])new ArrayList[3];
+        List<Double>[] accelReadingsSlow =  (ArrayList<Double>[])new ArrayList[3];
         int stepCount = 0;
         int stepTimer = 5;
         float[] smoothedAccel = new float[3];
@@ -176,12 +196,15 @@ public class MainActivity extends AppCompatActivity
         {
             this.reset = resetButton;
             this.outputStep = outputStep;
+            for (int x = 0; x < 3 ; x++)
+            {
+                accelReadingsFast[x] = new ArrayList<Double>();
+                accelReadingsNormal[x] = new ArrayList<Double>();
+                accelReadingsSlow[x] = new ArrayList<Double>();
+            }
             loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
             mHandler.obtainMessage(1).sendToTarget();
-            for (int x =0; x< 100 ; x++)
-            {
-                accelReadings.add(0.0);
-            }
+            padListZero();
             reset.setOnClickListener(new View.OnClickListener()
             {
                 @Override
@@ -218,35 +241,100 @@ public class MainActivity extends AppCompatActivity
 
         public void countSteps ()
         {
-            double accelDoubleVal = smoothedAccel[2];
-
-            accelReadings.remove();
-            accelReadings.add(accelDoubleVal);
-            double[] accelArray = new double[100];
-            for (int z =0 ; z< 100 ; z++)
+            double[] accelDoubleVal = {smoothedAccel[0],smoothedAccel[1],smoothedAccel[2]};
+            for (int x =0 ; x<3 ; x++)
             {
-                double queueVal=accelReadings.remove();
-                accelArray[z]=queueVal;
+                accelReadingsFast[x].remove(39);
+                accelReadingsNormal[x].remove(54);
+                accelReadingsSlow[x].remove(69);
+                accelReadingsFast[x].add(0,accelDoubleVal[x]);
+                accelReadingsNormal[x].add(0,accelDoubleVal[x]);
+                accelReadingsSlow[x].add(0,accelDoubleVal[x]);
             }
-            for (int k =0 ; k< 100 ; k++)
+            scaleList("Fast Step");
+            scaleList("Normal Step");
+            double[][] accelArray = new double[3][210];
+            for (int y = 0; y< 3; y++)
             {
-                accelReadings.add(accelArray[k]);
+                for (int z = 0; z < 70; z++)
+                {
+                    double queueVal1 = accelReadingsFast[y].get(z);
+                    double queueVal2 = accelReadingsNormal[y].get(z);
+                    double queueVal3 = accelReadingsSlow[y].get(z);
+                    accelArray[0][z] = queueVal1;
+                    accelArray[1][z] = queueVal2;
+                    accelArray[2][z] = queueVal3;
+                }
             }
-            loadedNeuralNetwork.setInput(accelArray);
+            loadedNeuralNetwork.setInput(accelArray[0]);
             loadedNeuralNetwork.calculate();
             double[] networkOutput = loadedNeuralNetwork.getOutput();
-            if (networkOutput[0] - 0.91 > 0)
+            if (!checkStep(networkOutput[0]))
             {
-                stepCount++;
-                mHandler.obtainMessage(1).sendToTarget();
-                accelReadings.clear();
-                for (int y =0; y< 100 ; y++)
+                loadedNeuralNetwork.setInput(accelArray[1]);
+                loadedNeuralNetwork.calculate();
+                double[] networkOutput1 = loadedNeuralNetwork.getOutput();
+                if (!checkStep(networkOutput1[0]))
                 {
-                    accelReadings.add(0.0);
+                    loadedNeuralNetwork.setInput(accelArray[2]);
+                    loadedNeuralNetwork.calculate();
+                    double[] networkOutput2 = loadedNeuralNetwork.getOutput();
+                    checkStep(networkOutput2[0]);
                 }
             }
 
         }
+        public void scaleList (String stepType)
+        {
+            for (int y= 0; y<3; y++)
+            {
+                if (stepType.equals("Normal Step"))
+                {
+                    for (int x = 1; x < 16; x++)
+                    {
+                        accelReadingsNormal[y].add(55 - x * 3, accelReadingsNormal[y].get(55 - x * 3 - 1) + (accelReadingsNormal[y].get(55 - x * 3) - accelReadingsNormal[y].get(55 - x * 3 - 1)) / 2);
+                    }
 
+                }
+                else
+                {
+                    for (int x = 1; x < 31; x++)
+                    {
+                        accelReadingsFast[y].add(40 - x, accelReadingsFast[y].get(40 - x - 1) + (accelReadingsFast[y].get(40 - x) - accelReadingsFast[y].get(40 - x - 1)) / 2);
+                    }
+                }
+            }
+        }
+        public void padListZero ()
+        {
+            for (int y = 0; y< 3; y++)
+            {
+                for (int x = 0; x < 70; x++)
+                {
+                    if (x < 40)
+                        accelReadingsFast[y].add(0.0);
+                    if (x < 55)
+                        accelReadingsNormal[y].add(0.0);
+                    accelReadingsSlow[y].add(0.0);
+                }
+            }
+        }
+        public boolean checkStep (double result)
+        {
+            if (result - 0.91 > 0)
+            {
+                stepCount++;
+                mHandler.obtainMessage(1).sendToTarget();
+                for (int q =0; q< 3 ; q++)
+                {
+                    accelReadingsFast[q].clear();
+                    accelReadingsNormal[q].clear();
+                    accelReadingsSlow[q].clear();
+                }
+                padListZero();
+                return true;
+            }
+            return false;
+        }
     }
 }
