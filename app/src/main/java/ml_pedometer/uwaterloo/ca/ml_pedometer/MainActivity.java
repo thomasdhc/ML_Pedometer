@@ -30,6 +30,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -79,7 +80,6 @@ public class MainActivity extends AppCompatActivity
             {
                 if (trained.getText().equals("Neural Network Status: Not Trained"))
                 {
-                    mHandler.sendEmptyMessage(1);
                     trainNeuralNetwork();
                     setUpSensor();
                 }
@@ -101,22 +101,23 @@ public class MainActivity extends AppCompatActivity
 
     public void trainNeuralNetwork ()
     {
-        BufferedReader reader;
-        MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(210, 8, 4, 1);
-        TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(210, 1);
 
-        String[][] accelVals = new String[1000][210];
-        double[][] step = new double[1000][1];
+        BufferedReader reader;
+        MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(55, 8, 4, 1);
+        TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(55, 1);
+
+        String[][] accelVals = new String[2000][55];
+        double[][] step = new double[2000][1];
 
         //Add training set data from "trainingData.txt"
         try {
             reader = new BufferedReader(new InputStreamReader(getAssets().open("finalStepTrainingData.txt")));
-            for (int x = 0; x < 1000; x++)
+            for (int x = 0; x < 2000; x++)
             {
-                double[] traingVals = new double[210];
+                double[] traingVals = new double[55];
                 step[x][0] = Double.parseDouble(reader.readLine());
                 accelVals[x] = reader.readLine().split(" ");
-                for (int y = 0; y < 210; y++)
+                for (int y = 0; y < 55; y++)
                 {
                     traingVals[y] = Double.parseDouble(accelVals[x][y]);
                 }
@@ -159,10 +160,10 @@ public class MainActivity extends AppCompatActivity
 
     public void testNeuralNetwork(NeuralNetwork nnet, String[][] testSet, double[][] expectedOutput)
     {
-        double[] testVals = new double[210];
-        for (int x = 0; x < 1000; x++)
+        double[] testVals = new double[55];
+        for (int x = 0; x < 2000; x++)
         {
-            for (int y = 0; y < 210; y++)
+            for (int y = 0; y < 55; y++)
             {
                 testVals[y] = Double.parseDouble(testSet[x][y]);
             }
@@ -180,11 +181,9 @@ public class MainActivity extends AppCompatActivity
         NeuralNetwork loadedNeuralNetwork;
         TextView outputStep;
         Button reset;
-        List<Double>[] accelReadingsFast =  (ArrayList<Double>[])new ArrayList[3];
-        List<Double>[] accelReadingsNormal =  (ArrayList<Double>[])new ArrayList[3];
-        List<Double>[] accelReadingsSlow =  (ArrayList<Double>[])new ArrayList[3];
+        Queue<Double> accelQueue = new LinkedList<Double>();
         int stepCount = 0;
-        int stepTimer = 5;
+        int stepTimer = 10;
         float[] smoothedAccel = new float[3];
         public final Handler mHandler = new Handler() {
             public void handleMessage(Message msg) {
@@ -196,15 +195,12 @@ public class MainActivity extends AppCompatActivity
         {
             this.reset = resetButton;
             this.outputStep = outputStep;
-            for (int x = 0; x < 3 ; x++)
-            {
-                accelReadingsFast[x] = new ArrayList<Double>();
-                accelReadingsNormal[x] = new ArrayList<Double>();
-                accelReadingsSlow[x] = new ArrayList<Double>();
-            }
             loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
             mHandler.obtainMessage(1).sendToTarget();
-            padListZero();
+            for (int x = 0; x < 55 ; x++)
+            {
+                accelQueue.add(0.0);
+            }
             reset.setOnClickListener(new View.OnClickListener()
             {
                 @Override
@@ -241,100 +237,35 @@ public class MainActivity extends AppCompatActivity
 
         public void countSteps ()
         {
-            double[] accelDoubleVal = {smoothedAccel[0],smoothedAccel[1],smoothedAccel[2]};
-            for (int x =0 ; x<3 ; x++)
+            double accelDoubleVal =  smoothedAccel[2];
+            accelQueue.add(accelDoubleVal);
+            accelQueue.remove();
+            double[] accelArray = new double[55];
+
+            for (int z = 0; z < 55; z++)
             {
-                accelReadingsFast[x].remove(39);
-                accelReadingsNormal[x].remove(54);
-                accelReadingsSlow[x].remove(69);
-                accelReadingsFast[x].add(0,accelDoubleVal[x]);
-                accelReadingsNormal[x].add(0,accelDoubleVal[x]);
-                accelReadingsSlow[x].add(0,accelDoubleVal[x]);
+                accelArray[z] = accelQueue.remove();
             }
-            scaleList("Fast Step");
-            scaleList("Normal Step");
-            double[][] accelArray = new double[3][210];
-            for (int y = 0; y< 3; y++)
+            for (int x =0; x< 55; x++)
             {
-                for (int z = 0; z < 70; z++)
-                {
-                    double queueVal1 = accelReadingsFast[y].get(z);
-                    double queueVal2 = accelReadingsNormal[y].get(z);
-                    double queueVal3 = accelReadingsSlow[y].get(z);
-                    accelArray[0][z] = queueVal1;
-                    accelArray[1][z] = queueVal2;
-                    accelArray[2][z] = queueVal3;
-                }
+                accelQueue.add(accelArray[x]);
             }
-            loadedNeuralNetwork.setInput(accelArray[0]);
+
+            loadedNeuralNetwork.setInput(accelArray);
             loadedNeuralNetwork.calculate();
-            double[] networkOutput = loadedNeuralNetwork.getOutput();
-            if (!checkStep(networkOutput[0]))
+            double[] networkOutput1 = loadedNeuralNetwork.getOutput();
+            if (networkOutput1[0] > 0.9)
             {
-                loadedNeuralNetwork.setInput(accelArray[1]);
-                loadedNeuralNetwork.calculate();
-                double[] networkOutput1 = loadedNeuralNetwork.getOutput();
-                if (!checkStep(networkOutput1[0]))
-                {
-                    loadedNeuralNetwork.setInput(accelArray[2]);
-                    loadedNeuralNetwork.calculate();
-                    double[] networkOutput2 = loadedNeuralNetwork.getOutput();
-                    checkStep(networkOutput2[0]);
-                }
-            }
-
-        }
-        public void scaleList (String stepType)
-        {
-            for (int y= 0; y<3; y++)
-            {
-                if (stepType.equals("Normal Step"))
-                {
-                    for (int x = 1; x < 16; x++)
-                    {
-                        accelReadingsNormal[y].add(55 - x * 3, accelReadingsNormal[y].get(55 - x * 3 - 1) + (accelReadingsNormal[y].get(55 - x * 3) - accelReadingsNormal[y].get(55 - x * 3 - 1)) / 2);
-                    }
-
-                }
-                else
-                {
-                    for (int x = 1; x < 31; x++)
-                    {
-                        accelReadingsFast[y].add(40 - x, accelReadingsFast[y].get(40 - x - 1) + (accelReadingsFast[y].get(40 - x) - accelReadingsFast[y].get(40 - x - 1)) / 2);
-                    }
-                }
-            }
-        }
-        public void padListZero ()
-        {
-            for (int y = 0; y< 3; y++)
-            {
-                for (int x = 0; x < 70; x++)
-                {
-                    if (x < 40)
-                        accelReadingsFast[y].add(0.0);
-                    if (x < 55)
-                        accelReadingsNormal[y].add(0.0);
-                    accelReadingsSlow[y].add(0.0);
-                }
-            }
-        }
-        public boolean checkStep (double result)
-        {
-            if (result - 0.91 > 0)
-            {
+                Log.i("Passed Result", "Result: " + networkOutput1[0]);
                 stepCount++;
                 mHandler.obtainMessage(1).sendToTarget();
-                for (int q =0; q< 3 ; q++)
+                accelQueue.clear();
+                for (int y =0; y < 55; y++)
                 {
-                    accelReadingsFast[q].clear();
-                    accelReadingsNormal[q].clear();
-                    accelReadingsSlow[q].clear();
+                    accelQueue.add(0.0);
                 }
-                padListZero();
-                return true;
             }
-            return false;
+
         }
     }
 }
