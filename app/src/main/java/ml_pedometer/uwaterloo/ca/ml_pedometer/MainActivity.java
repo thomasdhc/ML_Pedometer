@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity
 
         reset = (Button) findViewById(R.id.button);
         learn = (Button) findViewById(R.id.button2);
-        learn.setOnClickListener(new View.OnClickListener()
+        /*learn.setOnClickListener(new View.OnClickListener()
         {
             @Override
             public void onClick(View v)
@@ -92,8 +92,8 @@ public class MainActivity extends AppCompatActivity
                     setUpSensor();
                 }
             }
-        });
-        //setUpSensor();
+        });*/
+        setUpSensor();
         lin.addView(stepTextView);
         lin.addView(numOfInput);
     }
@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity
 
         //Add training set data from "trainingData.txt"
         try {
-            reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingFeed.txt")));
+            reader = new BufferedReader(new InputStreamReader(getAssets().open("ShuffleAug13.txt")));
             for (int x = 0; x < 1500; x++)
             {
                 double[] traingVals = new double[59];
@@ -137,7 +137,7 @@ public class MainActivity extends AppCompatActivity
         mlPerceptron.learn(trainingSet);
         Log.i("Done", "Training Done");
         //Test the trained neural network
-        testNeuralNetwork(mlPerceptron, accelVals, step);
+        testNeuralNetwork(mlPerceptron);
 
         String fileName="pedometer_perceptron.nnet";
         File sdCard = Environment.getExternalStorageDirectory();
@@ -173,7 +173,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void testNeuralNetwork(NeuralNetwork nnet, String[][] testSet, double[][] expectedOutput)
+    public void testNeuralNetwork(NeuralNetwork nnet)
     {
         String fileName = "Test.txt";
         File sdCard = Environment.getExternalStorageDirectory();
@@ -183,22 +183,29 @@ public class MainActivity extends AppCompatActivity
 
         try
         {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingFeed.txt")));
             FileOutputStream os = new FileOutputStream(file, true);
             PrintWriter out = new PrintWriter(os);
             double[] testVals = new double[59];
+            double[] step = new double[1];
+            String[] accelVals = new String[59];
             for (int x = 0; x < 1500; x++)
             {
+
+                step[0] = Double.parseDouble(reader.readLine());
+                accelVals = reader.readLine().split("\\t");
+
                 for (int y = 0; y < 59; y++)
                 {
-                    testVals[y] = Double.parseDouble(testSet[x][y]);
+                    testVals[y] = Double.parseDouble(accelVals[y]);
                 }
                 nnet.setInput(testVals);
                 nnet.calculate();
                 double[] networkOutput = nnet.getOutput();
 
-                out.println("Input: " + testSet[x]);
+                out.println("Input: " + testVals);
                 out.println("Output: " + Arrays.toString(networkOutput));
-                out.println("Expected output"+ Double.toString(expectedOutput[x][0]));
+                out.println("Expected output"+ Double.toString(step[0]));
             }
             out.close();
             os.close();
@@ -316,7 +323,7 @@ public class MainActivity extends AppCompatActivity
 
 
                 double[] networkOutput1 = loadedNeuralNetwork.getOutput();
-                if (networkOutput1[0] > 0.46)
+                if (networkOutput1[0] > 0.9)
                 {
                     recordStepVals (accelArray);
                     stepCount++;
@@ -382,13 +389,8 @@ public class MainActivity extends AppCompatActivity
                 reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingFeed.txt")));
                 for (int x = 0; x < 1500; x++)
                 {
-                    double[] traingVals = new double[59];
                     step[x][0] = Double.parseDouble(reader.readLine());
                     accelVals[x] = reader.readLine().split("\\t");
-                    for (int y = 0; y < 59; y++)
-                    {
-                        traingVals[y] = Double.parseDouble(accelVals[x][y]);
-                    }
                 }
             } catch (IOException e) {
             }
