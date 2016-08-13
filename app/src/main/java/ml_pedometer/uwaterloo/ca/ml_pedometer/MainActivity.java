@@ -9,6 +9,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v4.app.ActivityCompat;
@@ -27,8 +28,12 @@ import org.neuroph.nnet.MultiLayerPerceptron;
 import org.w3c.dom.Text;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -42,6 +47,7 @@ public class MainActivity extends AppCompatActivity
 {
     TextView stepTextView;
     TextView trained;
+    TextView numOfInput;
     Button reset;
     Button learn;
     public final Handler mHandler = new Handler()
@@ -66,13 +72,15 @@ public class MainActivity extends AppCompatActivity
         lin.setOrientation(LinearLayout.VERTICAL);
 
         stepTextView = new TextView(getApplicationContext());
+        numOfInput = new TextView(getApplicationContext());
+
         trained = (TextView) findViewById(R.id.textview1);
         stepTextView.setTextColor(Color.parseColor("#000000"));
+        numOfInput.setTextColor(Color.parseColor("#000000"));
         trained.setTextColor(Color.parseColor("#000000"));
 
         reset = (Button) findViewById(R.id.button);
         learn = (Button) findViewById(R.id.button2);
-
         learn.setOnClickListener(new View.OnClickListener()
         {
             @Override
@@ -85,8 +93,9 @@ public class MainActivity extends AppCompatActivity
                 }
             }
         });
-
+        //setUpSensor();
         lin.addView(stepTextView);
+        lin.addView(numOfInput);
     }
 
     public void setUpSensor ()
@@ -94,32 +103,32 @@ public class MainActivity extends AppCompatActivity
         SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         Sensor accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
-        AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView, reset);
+        AccelerometerSensorEventListener a = new AccelerometerSensorEventListener(stepTextView,numOfInput, reset);
 
         sensorManager.registerListener(a, accelSensor, SensorManager.SENSOR_DELAY_FASTEST);
     }
 
     public void trainNeuralNetwork ()
     {
-
         BufferedReader reader;
-        MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(55, 8, 4, 1);
-        TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(55, 1);
+        MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(59, 8, 4, 1);
+        TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(59, 1);
 
-        String[][] accelVals = new String[2000][55];
-        double[][] step = new double[2000][1];
+        String[][] accelVals = new String[1500][59];
+        double[][] step = new double[1500][1];
 
         //Add training set data from "trainingData.txt"
         try {
-            reader = new BufferedReader(new InputStreamReader(getAssets().open("finalStepTrainingData.txt")));
-            for (int x = 0; x < 2000; x++)
+            reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingFeed.txt")));
+            for (int x = 0; x < 1500; x++)
             {
-                double[] traingVals = new double[55];
+                double[] traingVals = new double[59];
                 step[x][0] = Double.parseDouble(reader.readLine());
-                accelVals[x] = reader.readLine().split(" ");
-                for (int y = 0; y < 55; y++)
+                accelVals[x] = reader.readLine().split("\\t");
+                for (int y = 0; y < 59; y++)
                 {
                     traingVals[y] = Double.parseDouble(accelVals[x][y]);
+
                 }
                 trainingSet.addElement(new SupervisedTrainingElement(traingVals, step[x]));
             }
@@ -130,7 +139,13 @@ public class MainActivity extends AppCompatActivity
         //Test the trained neural network
         testNeuralNetwork(mlPerceptron, accelVals, step);
 
-        mlPerceptron.save("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
+        String fileName="pedometer_perceptron.nnet";
+        File sdCard = Environment.getExternalStorageDirectory();
+        File dir = new File (sdCard.getAbsolutePath()+"/Download");
+        dir.mkdirs();
+        File file = new File(dir, fileName);
+
+        mlPerceptron.save(file.toString());
         mHandler.sendEmptyMessage(2);
     }
 
@@ -160,19 +175,41 @@ public class MainActivity extends AppCompatActivity
 
     public void testNeuralNetwork(NeuralNetwork nnet, String[][] testSet, double[][] expectedOutput)
     {
-        double[] testVals = new double[55];
-        for (int x = 0; x < 2000; x++)
+        String fileName = "Test.txt";
+        File sdCard = Environment.getExternalStorageDirectory();
+        File dir = new File (sdCard.getAbsolutePath()+"/Download");
+        dir.mkdirs();
+        File file = new File(dir, fileName);
+
+        try
         {
-            for (int y = 0; y < 55; y++)
+            FileOutputStream os = new FileOutputStream(file, true);
+            PrintWriter out = new PrintWriter(os);
+            double[] testVals = new double[59];
+            for (int x = 0; x < 1500; x++)
             {
-                testVals[y] = Double.parseDouble(testSet[x][y]);
+                for (int y = 0; y < 59; y++)
+                {
+                    testVals[y] = Double.parseDouble(testSet[x][y]);
+                }
+                nnet.setInput(testVals);
+                nnet.calculate();
+                double[] networkOutput = nnet.getOutput();
+
+                out.println("Input: " + testSet[x]);
+                out.println("Output: " + Arrays.toString(networkOutput));
+                out.println("Expected output"+ Double.toString(expectedOutput[x][0]));
             }
-            nnet.setInput(testVals);
-            nnet.calculate();
-            double[] networkOutput = nnet.getOutput();
-            //Log.i("Test input", "Input: " + testSet[x]);
-            //Log.i("Test output", "Output: " + Arrays.toString(networkOutput));
-            //Log.i("Expected output", "Output: "+ Double.toString(expectedOutput[x][0]));
+            out.close();
+            os.close();
+        }
+        catch (FileNotFoundException f)
+        {
+            Log.e("FileNotFoundException", "File was not found");
+        }
+        catch (IOException e)
+        {
+            Log.e("IOException", "IOException occured");
         }
     }
 
@@ -180,24 +217,42 @@ public class MainActivity extends AppCompatActivity
     {
         NeuralNetwork loadedNeuralNetwork;
         TextView outputStep;
+        TextView numOfInput;
+
         Button reset;
         Queue<Double> accelQueue = new LinkedList<Double>();
         int stepCount = 0;
         int stepTimer = 10;
         float[] smoothedAccel = new float[3];
+
+        int totalInputs =0;
+        FileOutputStream os;
+        PrintWriter out;
+
         public final Handler mHandler = new Handler() {
             public void handleMessage(Message msg) {
                 outputStep.setText("Steps: "+ Integer.toString(stepCount)); //this is the textview
+                numOfInput.setText("Total Input: " + totalInputs);
             }
         };;
 
-        public AccelerometerSensorEventListener(TextView outputStep, Button resetButton)
+        public AccelerometerSensorEventListener(TextView outputStep, TextView numOfInput, Button resetButton)
         {
+
+            this.numOfInput = numOfInput;
             this.reset = resetButton;
             this.outputStep = outputStep;
-            loadedNeuralNetwork = NeuralNetwork.load("data/data/ml_pedometer.uwaterloo.ca.ml_pedometer/pedometer_perceptron.nnet");
+
+            String fileName="pedometer_perceptron.nnet";
+            File sdCard = Environment.getExternalStorageDirectory();
+            File dir = new File (sdCard.getAbsolutePath()+"/Download");
+            dir.mkdirs();
+            File file = new File(dir, fileName);
+
+            loadedNeuralNetwork = NeuralNetwork.load(file.toString());
+            //testNN();
             mHandler.obtainMessage(1).sendToTarget();
-            for (int x = 0; x < 55 ; x++)
+            for (int x = 0; x < 59 ; x++)
             {
                 accelQueue.add(0.0);
             }
@@ -240,32 +295,118 @@ public class MainActivity extends AppCompatActivity
             double accelDoubleVal =  smoothedAccel[2];
             accelQueue.add(accelDoubleVal);
             accelQueue.remove();
-            double[] accelArray = new double[55];
+            String inputVals = "";
+            double[] accelArray = new double[59];
 
-            for (int z = 0; z < 55; z++)
+            for (int z = 0; z < 59; z++)
             {
                 accelArray[z] = accelQueue.remove();
             }
-            for (int x =0; x< 55; x++)
+            for (int x =0; x< 59; x++)
             {
+                inputVals = inputVals + accelArray[x] + " ";
                 accelQueue.add(accelArray[x]);
             }
 
-            loadedNeuralNetwork.setInput(accelArray);
-            loadedNeuralNetwork.calculate();
-            double[] networkOutput1 = loadedNeuralNetwork.getOutput();
-            if (networkOutput1[0] > 0.9)
+            if (accelArray[0] != 0.0)
             {
-                Log.i("Passed Result", "Result: " + networkOutput1[0]);
-                stepCount++;
-                mHandler.obtainMessage(1).sendToTarget();
-                accelQueue.clear();
-                for (int y =0; y < 55; y++)
+                totalInputs ++;
+                loadedNeuralNetwork.setInput(accelArray);
+                loadedNeuralNetwork.calculate();
+
+
+                double[] networkOutput1 = loadedNeuralNetwork.getOutput();
+                if (networkOutput1[0] > 0.46)
                 {
-                    accelQueue.add(0.0);
+                    recordStepVals (accelArray);
+                    stepCount++;
+
+                    accelQueue.clear();
+                    for (int y = 0; y < 59; y++)
+                    {
+                        accelQueue.add(0.0);
+                    }
                 }
+
+                mHandler.obtainMessage(1).sendToTarget();
+            }
+        }
+
+        public void recordStepVals (double[] readingsArray)
+        {
+            String fileName = "NNDectedSteps.txt";
+            File sdCard = Environment.getExternalStorageDirectory();
+            File dir = new File (sdCard.getAbsolutePath()+"/Download");
+            dir.mkdirs();
+            File file = new File(dir, fileName);
+
+            try
+            {
+                os = new FileOutputStream(file, true);
+                out = new PrintWriter(os);
+                for (int x = 0 ; x < 59 ; x++)
+                {
+                    if (x == 58)
+                    {
+                        out.println(readingsArray[x]);
+                    }
+                    else
+                    {
+                        out.print(readingsArray[x] + " ");
+                    }
+                }
+                out.close();
+                os.close();
+            }
+            catch (FileNotFoundException f)
+            {
+                Log.e("FileNotFoundException", "File was not found");
+            }
+            catch (IOException e)
+            {
+                Log.e("IOException", "IOException occured");
+            }
+        }
+
+        public void testNN ()
+        {
+            BufferedReader reader;
+            MultiLayerPerceptron mlPerceptron = new MultiLayerPerceptron(59, 8, 4, 1);
+            TrainingSet<SupervisedTrainingElement> trainingSet = new TrainingSet<SupervisedTrainingElement>(59, 1);
+
+            String[][] accelVals = new String[1500][59];
+            double[][] step = new double[1500][1];
+
+            //Add training set data from "trainingData.txt"
+            try {
+                reader = new BufferedReader(new InputStreamReader(getAssets().open("trainingFeed.txt")));
+                for (int x = 0; x < 1500; x++)
+                {
+                    double[] traingVals = new double[59];
+                    step[x][0] = Double.parseDouble(reader.readLine());
+                    accelVals[x] = reader.readLine().split("\\t");
+                    for (int y = 0; y < 59; y++)
+                    {
+                        traingVals[y] = Double.parseDouble(accelVals[x][y]);
+                    }
+                }
+            } catch (IOException e) {
             }
 
+            double[] testVals = new double[59];
+            for (int x = 0; x < 1500; x++)
+            {
+                for (int y = 0; y < 59; y++)
+                {
+                    testVals[y] = Double.parseDouble(accelVals[x][y]);
+                }
+                loadedNeuralNetwork.setInput(testVals);
+                loadedNeuralNetwork.calculate();
+                double[] networkOutput = loadedNeuralNetwork.getOutput();
+                Log.i("Test input", "Input: " +x + " " + accelVals[x]);
+                Log.i("Test output", "Output: " + x+" "  + Arrays.toString(networkOutput));
+                Log.i("Expected output", "Output: "+  Double.toString(step[x][0]));
+            }
         }
     }
 }
