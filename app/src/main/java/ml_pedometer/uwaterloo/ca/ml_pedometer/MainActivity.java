@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity
 
         //Add training set data from "trainingData.txt"
         try {
-            reader = new BufferedReader(new InputStreamReader(getAssets().open("ShuffleAug13.txt")));
+            reader = new BufferedReader(new InputStreamReader(getAssets().open("Shuffle2Aug13.txt")));
             for (int x = 0; x < 1500; x++)
             {
                 double[] traingVals = new double[59];
@@ -250,7 +250,8 @@ public class MainActivity extends AppCompatActivity
             this.reset = resetButton;
             this.outputStep = outputStep;
 
-            String fileName="pedometer_perceptron.nnet";
+            String fileName="NN5916841(Shuffle2Aug13).nnet";
+            //String fileName="NNAug20.nnet";
             File sdCard = Environment.getExternalStorageDirectory();
             File dir = new File (sdCard.getAbsolutePath()+"/Download");
             dir.mkdirs();
